@@ -3,39 +3,357 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>LangSmith Markdown Renderer</title>
+    <title>Operations Summary</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
     <style>
-      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 16px; }
-      pre, code { white-space: pre-wrap; }
-      .meta { opacity: 0.7; font-size: 12px; margin-bottom: 12px; }
+      /* ── Reset & base ────────────────────────────────────── */
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #fff;
+        color: rgba(0, 0, 0, 0.87);
+      }
+
+      /* ── Card shell ──────────────────────────────────────── */
+      .card {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        background: #fff;
+        margin: 8px;
+        overflow: hidden;
+      }
+
+      /* ── Title area ──────────────────────────────────────── */
+      .title-area {
+        padding: 12px 20px 0 20px;
+      }
+
+      .title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+      }
+
+      .title-text {
+        font-size: 16px;
+        font-weight: 600;
+        color: rgba(0, 0, 0, 0.87);
+        white-space: nowrap;
+      }
+
+      .ai-icon {
+        font-size: 0.75em;
+        vertical-align: baseline;
+        margin-left: 2px;
+        opacity: 0.8;
+      }
+
+      .generated-at-container {
+        display: none;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .generated-at {
+        color: #888;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
+      .refresh-icon {
+        font-size: 14px;
+        color: #888;
+        cursor: pointer;
+        transition: color 0.15s ease;
+      }
+      .refresh-icon:hover { color: #1976d2; }
+
+      /* ── Powered-by line ─────────────────────────────────── */
+      .powered-by {
+        color: #888;
+        font-size: 11px;
+        padding: 0 20px;
+        line-height: 1.4;
+      }
+
+      /* ── Content container ───────────────────────────────── */
+      .container {
+        padding: 20px;
+        min-height: 60px;
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-start;
+      }
+
+      .content-wrapper {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      /* ── Markdown styles (mirrored from app) ─────────────── */
+      .markdown-container {
+        width: 100%;
+        font-size: 14px;
+        line-height: 1.6;
+        overflow-wrap: break-word;
+        word-break: break-word;
+      }
+
+      .markdown-container p              { margin: 0 0 12px 0; }
+      .markdown-container p:last-child   { margin-bottom: 0; }
+
+      .markdown-container ul,
+      .markdown-container ol             { margin: 8px 0; padding-left: 24px; }
+      .markdown-container li             { margin: 4px 0; }
+
+      .markdown-container strong         { font-weight: 600; }
+      .markdown-container em             { font-style: italic; }
+
+      .markdown-container code {
+        background-color: rgba(0, 0, 0, 0.05);
+        padding: 2px 4px;
+        border-radius: 3px;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 0.9em;
+      }
+      .markdown-container pre {
+        background-color: rgba(0, 0, 0, 0.05);
+        padding: 12px;
+        border-radius: 4px;
+        overflow-x: auto;
+        margin: 8px 0;
+      }
+      .markdown-container pre code {
+        background-color: transparent;
+        padding: 0;
+      }
+
+      .markdown-container blockquote {
+        border-left: 3px solid #ddd;
+        padding-left: 12px;
+        margin: 8px 0;
+        color: #666;
+      }
+
+      .markdown-container h1,
+      .markdown-container h2,
+      .markdown-container h3             { margin: 16px 0 8px 0; font-weight: 600; }
+      .markdown-container h1             { font-size: 1.5em; }
+      .markdown-container h2             { font-size: 1.3em; }
+      .markdown-container h3             { font-size: 1.1em; }
+
+      .markdown-container a              { color: #1976d2; text-decoration: none; }
+      .markdown-container a:hover        { text-decoration: underline; }
+
+      .markdown-container table          { border-collapse: collapse; width: 100%; margin: 8px 0; }
+      .markdown-container th,
+      .markdown-container td             { border: 1px solid #ddd; padding: 8px; text-align: left; }
+      .markdown-container th             { background-color: rgba(0, 0, 0, 0.05); font-weight: 600; }
+
+      .markdown-container hr             { border: none; border-top: 1px solid #eee; margin: 16px 0; }
+
+      /* ── Footer ──────────────────────────────────────────── */
+      .footer {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 12px;
+        padding-top: 8px;
+        border-top: 1px solid #eee;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+
+      .disclaimer {
+        color: #888;
+        font-size: 11px;
+        font-style: italic;
+        padding-right: 20px;
+      }
+
+      .feedback-section {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .feedback-prompt {
+        text-align: right;
+        min-width: 137px;
+        font-size: 11px;
+        color: #888;
+      }
+
+      .feedback-buttons {
+        display: flex;
+        align-items: center;
+      }
+
+      .feedback-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.15s ease, color 0.15s ease;
+        color: #888;
+        user-select: none;
+      }
+      .feedback-button:hover {
+        background-color: rgba(0, 0, 0, 0.04);
+        color: #555;
+      }
+      .feedback-button.active {
+        color: #1976d2;
+      }
+      .feedback-button.active:hover {
+        background-color: transparent;
+        color: #1565c0;
+      }
+
+      .feedback-icon { font-size: 14px; }
+
+      /* ── Waiting state ───────────────────────────────────── */
+      .waiting-text {
+        color: #888;
+        font-size: 14px;
+        font-style: italic;
+      }
     </style>
   </head>
   <body>
-    <div class="meta" id="meta">Waiting for LangSmith…</div>
-    <div id="content"></div>
+
+    <div class="card">
+      <!-- Title row -->
+      <div class="title-area">
+        <div class="title-row">
+          <span class="title-text">
+            Operations Summary <span class="ai-icon">&#10024;</span>
+          </span>
+          <div class="generated-at-container" id="generated-at-container">
+            <span class="generated-at" id="generated-at"></span>
+            <i class="fa-solid fa-arrows-rotate refresh-icon" id="refresh-icon" title="Refresh summary"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subtitle -->
+      <div class="powered-by">Powered by PowerTrack Sage</div>
+
+      <!-- Content -->
+      <div class="container">
+        <div class="content-wrapper">
+          <div class="markdown-container" id="content">
+            <span class="waiting-text">Waiting for data&hellip;</span>
+          </div>
+
+          <!-- Footer -->
+          <div class="footer" id="footer">
+            <span class="disclaimer">Overview is AI-generated and may contain mistakes. Double-check results.</span>
+            <div class="feedback-section">
+              <span class="feedback-prompt" id="feedback-prompt">Is this information helpful?</span>
+              <div class="feedback-buttons">
+                <span class="feedback-button" id="thumbs-up" title="Yes!">
+                  <i class="fa-regular fa-thumbs-up feedback-icon"></i>
+                </span>
+                <span class="feedback-button" id="thumbs-down" title="Not really">
+                  <i class="fa-regular fa-thumbs-down feedback-icon"></i>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <script>
+      /* ── Markdown extraction ───────────────────────────── */
       function extractMarkdown(msg) {
-        const d = msg?.data;
+        var d = msg && msg.data;
         if (typeof d === "string") return d;
         if (d && typeof d.markdown === "string") return d.markdown;
         if (d && typeof d.output === "string") return d.output;
+        if (d && typeof d.text === "string") return d.text;
         // last resort: show JSON
         return "```json\n" + JSON.stringify(msg, null, 2) + "\n```";
       }
 
-      window.addEventListener("message", (event) => {
-        const msg = event.data; // { type: "output" | "reference", data: ..., metadata: { inputs: ... } }
-        document.getElementById("meta").textContent =
-          `type=${msg?.type ?? "?"}  •  received=${new Date().toISOString()}`;
+      /* ── Time formatting (matches app logic) ───────────── */
+      function formatGeneratedAt(dateStr) {
+        try {
+          var date = new Date(dateStr);
+          if (isNaN(date.getTime())) return null;
+          var timeStr = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+          var today = new Date();
+          var isToday = date.toDateString() === today.toDateString();
+          return isToday
+            ? "Generated at " + timeStr
+            : "Generated " + date.toLocaleDateString([], { month: "short", day: "numeric" }) + " at " + timeStr;
+        } catch (e) {
+          return null;
+        }
+      }
 
-        const md = extractMarkdown(msg);
-        const html = marked.parse(md, { breaks: true });
+      /* ── PostMessage handler ───────────────────────────── */
+      window.addEventListener("message", function (event) {
+        var msg = event.data;
+        if (!msg) return;
+
+        // Render markdown
+        var md = extractMarkdown(msg);
+        var html = marked.parse(md, { breaks: true });
         document.getElementById("content").innerHTML = DOMPurify.sanitize(html);
+
+        // Show footer
+        document.getElementById("footer").style.display = "flex";
+
+        // Show generated-at timestamp
+        var generatedAt =
+          (msg.data && msg.data.generatedAt) ||
+          (msg.metadata && msg.metadata.generatedAt) ||
+          null;
+
+        var timeText = generatedAt
+          ? formatGeneratedAt(generatedAt)
+          : "Generated at " + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+        if (timeText) {
+          document.getElementById("generated-at").textContent = timeText;
+          document.getElementById("generated-at-container").style.display = "flex";
+        }
+      });
+
+      /* ── Feedback button interactions (visual only) ─────── */
+      var thumbsUp = document.getElementById("thumbs-up");
+      var thumbsDown = document.getElementById("thumbs-down");
+
+      thumbsUp.addEventListener("click", function () {
+        var wasActive = this.classList.contains("active");
+        this.classList.toggle("active");
+        thumbsDown.classList.remove("active");
+        this.querySelector("i").className =
+          (wasActive ? "fa-regular" : "fa-solid") + " fa-thumbs-up feedback-icon";
+        thumbsDown.querySelector("i").className = "fa-regular fa-thumbs-down feedback-icon";
+      });
+
+      thumbsDown.addEventListener("click", function () {
+        var wasActive = this.classList.contains("active");
+        this.classList.toggle("active");
+        thumbsUp.classList.remove("active");
+        this.querySelector("i").className =
+          (wasActive ? "fa-regular" : "fa-solid") + " fa-thumbs-down feedback-icon";
+        thumbsUp.querySelector("i").className = "fa-regular fa-thumbs-up feedback-icon";
       });
     </script>
   </body>
 </html>
-
