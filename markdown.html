@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>LangSmith Markdown Renderer</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 16px; }
+      pre, code { white-space: pre-wrap; }
+      .meta { opacity: 0.7; font-size: 12px; margin-bottom: 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="meta" id="meta">Waiting for LangSmith…</div>
+    <div id="content"></div>
+
+    <script>
+      function extractMarkdown(msg) {
+        const d = msg?.data;
+        if (typeof d === "string") return d;
+        if (d && typeof d.markdown === "string") return d.markdown;
+        if (d && typeof d.output === "string") return d.output;
+        // last resort: show JSON
+        return "```json\n" + JSON.stringify(msg, null, 2) + "\n```";
+      }
+
+      window.addEventListener("message", (event) => {
+        const msg = event.data; // { type: "output" | "reference", data: ..., metadata: { inputs: ... } }
+        document.getElementById("meta").textContent =
+          `type=${msg?.type ?? "?"}  •  received=${new Date().toISOString()}`;
+
+        const md = extractMarkdown(msg);
+        const html = marked.parse(md, { breaks: true });
+        document.getElementById("content").innerHTML = DOMPurify.sanitize(html);
+      });
+    </script>
+  </body>
+</html>
+
